@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>モノポリー銀行</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen calculator. Balance display on top, situation buttons in the middle, keypad with 払う / もらう at the bottom. White base, black ink, square corners. Single light look by choice. */
+:root {
+  --bg: #ffffff;
+  --ink: #0a0a0a;
+  --mute: #6b6b6b;
+  --line: #d2d2d2;
+  --soft: #f1f1f1;
+  --num: "Archivo Narrow", "Arial Narrow", "Noto Sans JP", sans-serif;
+  --body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; border-radius: 0 !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+#app { height: 100%; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; border-inline: 1px solid var(--line); }
+
+/* header */
+.top { display: flex; align-items: center; gap: 8px; padding-inline: 16px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+.top .who { flex: 1; min-width: 0; text-align: left; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbtn { border: 1.5px solid var(--ink); padding: 4px 12px; font-size: 13px; font-weight: 700; }
+.tbtn:active { background: var(--ink); color: var(--bg); }
+
+/* display */
+.display { padding-inline: 16px; padding-block: 12px 10px; display: grid; gap: 6px; }
+.display .k { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--mute); }
+.bal { font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 700; font-size: clamp(52px, 17vw, 76px); line-height: 1; text-align: right; overflow-wrap: anywhere; }
+.bal.bump { animation: bump .25s ease-out; }
+@keyframes bump { 0% { transform: translateY(-4px); opacity: .4; } 100% { transform: none; opacity: 1; } }
+.entry { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 8px; min-height: 48px; }
+.entry .lab { flex: 1; min-width: 0; font-size: 13px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry .amt { font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 700; }
+.entry .clr { border: 1.5px solid var(--ink); width: 36px; height: 32px; font-weight: 700; }
+.entry.err { background: var(--ink); color: var(--bg); margin-inline: -16px; padding-inline: 16px; border-top-color: var(--ink); }
+.entry.err .lab { color: var(--bg); white-space: normal; }
+.last { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mute); min-height: 28px; }
+.last .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.last .t b { font-family: var(--num); font-size: 15px; color: var(--ink); }
+.last button { text-decoration: underline; text-underline-offset: 3px; font-weight: 700; color: var(--ink); padding: 4px 0; }
+
+/* situation buttons */
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.q { background: var(--bg); min-height: 50px; display: grid; place-content: center; text-align: center; font-size: 13px; font-weight: 700; line-height: 1.25; padding: 4px; }
+.q small { display: block; font-family: var(--num); font-size: 14px; font-weight: 500; color: var(--mute); }
+.q:active { background: var(--ink); color: var(--bg); }
+.q:active small { color: var(--bg); }
+
+/* keypad */
+.keys { flex: 1; min-height: 232px; display: grid; grid-template-columns: repeat(3, 1fr) 1.2fr; grid-template-rows: repeat(4, 1fr); gap: 1px; background: var(--line); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.key { background: var(--bg); font-family: var(--num); font-size: 30px; font-weight: 500; }
+.key:active { background: var(--soft); }
+.go { display: grid; place-content: center; gap: 2px; font-weight: 700; font-size: 18px; transition: opacity .15s; }
+.go span { font-family: var(--num); font-size: 34px; line-height: 1; }
+.pay { grid-column: 4; grid-row: 1 / span 2; background: var(--ink); color: var(--bg); }
+.get { grid-column: 4; grid-row: 3 / span 2; background: var(--bg); box-shadow: inset 0 0 0 3px var(--ink); }
+.pay:active { background: #333333; }
+.get:active { background: var(--soft); }
+.go.dim { opacity: .25; }
+
+/* sheet */
+.sheet { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+.sheet-inner { flex: 1; min-height: 0; width: 100%; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; }
+.sh-head { display: flex; align-items: center; gap: 12px; padding-inline: 16px; padding-block: 10px; border-bottom: 1px solid var(--ink); }
+.sh-head .t { flex: 1; font-weight: 700; }
+.sh-body { flex: 1; overflow-y: auto; padding-inline: 16px; padding-block: 16px 24px; display: grid; gap: 18px; align-content: start; }
+.sh-foot { border-top: 1px solid var(--ink); padding-inline: 16px; padding-block: 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.sh-foot:empty { display: none; }
+.primary { width: 100%; min-height: 54px; background: var(--ink); color: var(--bg); font-size: 17px; font-weight: 700; }
+.primary:disabled { background: var(--soft); color: var(--mute); }
+.secondary { width: 100%; min-height: 48px; border: 1.5px solid var(--ink); font-weight: 700; }
+.secondary:active { background: var(--ink); color: var(--bg); }
+
+.field { display: grid; gap: 6px; }
+.field > .lbl { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--mute); }
+select, input[type=text] { width: 100%; min-height: 48px; padding: 8px 10px; border: 1.5px solid var(--ink); background: var(--bg); appearance: none; -webkit-appearance: none; font-size: 16px; }
+select { background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 32px; }
+.note { font-size: 12px; color: var(--mute); margin: 0; }
+.result { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid var(--ink); padding-bottom: 4px; }
+.result span { font-size: 13px; color: var(--mute); }
+.result b { font-family: var(--num); font-size: 44px; font-variant-numeric: tabular-nums; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1.5px solid var(--ink); }
+.seg button { min-height: 44px; font-weight: 700; font-size: 14px; }
+.seg button + button { border-left: 1.5px solid var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; border: 1.5px solid var(--ink); }
+.stepper button { min-height: 46px; font-size: 22px; font-weight: 700; }
+.stepper button:active { background: var(--ink); color: var(--bg); }
+.stepper output { display: grid; place-items: center; font-family: var(--num); font-size: 24px; font-weight: 700; border-inline: 1.5px solid var(--ink); }
+.check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.check input { width: 22px; height: 22px; accent-color: var(--ink); }
+.list { display: grid; border-top: 1px solid var(--line); }
+.list button { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); text-align: left; }
+.list button:active { background: var(--soft); }
+.list b { font-family: var(--num); font-size: 20px; white-space: nowrap; }
+.list .h { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--mute); padding-block: 14px 6px; border-bottom: 1px solid var(--line); }
+.log { list-style: none; margin: 0; padding: 0; }
+.log li { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: baseline; padding-block: 11px; border-bottom: 1px solid var(--line); }
+.log time { font-family: var(--num); font-size: 13px; color: var(--mute); }
+.log .d { font-family: var(--num); font-size: 18px; font-weight: 700; text-align: right; }
+.log .d small { display: block; font-size: 12px; font-weight: 500; color: var(--mute); }
+@media (prefers-reduced-motion: reduce) { .bal.bump { animation: none; } .go { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="top">
+    <button class="who" id="who" type="button"></button>
+    <button class="tbtn" id="openHist" type="button">履歴</button>
+    <button class="tbtn" id="openSet" type="button">設定</button>
+  </header>
+
+  <section class="display" aria-label="残高">
+    <span class="k">残高</span>
+    <div class="bal" id="bal" aria-live="polite"></div>
+    <div class="entry" id="entry">
+      <span class="lab" id="eLab"></span>
+      <span class="amt" id="eAmt"></span>
+      <button class="clr" id="clr" type="button" aria-label="入力を消す">C</button>
+    </div>
+    <div class="last" id="last"></div>
+  </section>
+
+  <section class="quick" aria-label="よく使う場面">
+    <button class="q" type="button" data-fixed="go">GO 通過<small id="goAmt">+200</small></button>
+    <button class="q" type="button" data-fixed="itax">所得税<small>−200</small></button>
+    <button class="q" type="button" data-fixed="ltax">物品税<small>−100</small></button>
+    <button class="q" type="button" data-fixed="jail">保釈金<small>−50</small></button>
+    <button class="q" type="button" data-help="rent">家賃</button>
+    <button class="q" type="button" data-help="buy">土地を買う</button>
+    <button class="q" type="button" data-help="build">家・ホテル</button>
+    <button class="q" type="button" data-help="mortgage">抵当</button>
+    <button class="q" type="button" data-help="cards">カード</button>
+    <button class="q" type="button" data-help="all">全員と</button>
+    <button class="q" type="button" data-help="repair">修繕費</button>
+    <button class="q" type="button" data-help="bankrupt">破産</button>
+  </section>
+
+  <section class="keys" aria-label="テンキー">
+    <button class="key" type="button" data-k="7">7</button>
+    <button class="key" type="button" data-k="8">8</button>
+    <button class="key" type="button" data-k="9">9</button>
+    <button class="go pay" id="pay" type="button"><span>−</span>払う</button>
+    <button class="key" type="button" data-k="4">4</button>
+    <button class="key" type="button" data-k="5">5</button>
+    <button class="key" type="button" data-k="6">6</button>
+    <button class="key" type="button" data-k="1">1</button>
+    <button class="key" type="button" data-k="2">2</button>
+    <button class="key" type="button" data-k="3">3</button>
+    <button class="go get" id="get" type="button"><span>＋</span>もらう</button>
+    <button class="key" type="button" data-k="0">0</button>
+    <button class="key" type="button" data-k="00">00</button>
+    <button class="key" type="button" data-k="bs" aria-label="1文字消す">⌫</button>
+  </section>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-inner">
+    <div class="sh-head">
+      <button class="tbtn" id="shClose" type="button">← 戻る</button>
+      <div class="t" id="shTitle"></div>
+    </div>
+    <div class="sh-body" id="shBody"></div>
+    <div class="sh-foot" id="shFoot"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ---------- board data (standard edition) ----------
+  const GROUPS = {
+    brown: ['茶', 50], lblue: ['水色', 50], pink: ['ピンク', 100], orange: ['オレンジ', 100],
+    red: ['赤', 150], yellow: ['黄', 150], green: ['緑', 200], dblue: ['紺', 200],
+    rr: ['鉄道', 0], ut: ['公共会社', 0],
+  };
+  const BUILD_GROUPS = ['brown', 'lblue', 'pink', 'orange', 'red', 'yellow', 'green', 'dblue'];
+  // [group, name, price, rents: land, 1–4 houses, hotel]
+  const PROPS = [
+    ['brown', 'メディタレーニアン通り', 60, [2, 10, 30, 90, 160, 250]],
+    ['brown', 'バルティック通り', 60, [4, 20, 60, 180, 320, 450]],
+    ['lblue', 'オリエンタル通り', 100, [6, 30, 90, 270, 400, 550]],
+    ['lblue', 'バーモント通り', 100, [6, 30, 90, 270, 400, 550]],
+    ['lblue', 'コネチカット通り', 120, [8, 40, 100, 300, 450, 600]],
+    ['pink', 'セントチャールズ・プレース', 140, [10, 50, 150, 450, 625, 750]],
+    ['pink', 'ステーツ通り', 140, [10, 50, 150, 450, 625, 750]],
+    ['pink', 'バージニア通り', 160, [12, 60, 180, 500, 700, 900]],
+    ['orange', 'セントジェームス・プレース', 180, [14, 70, 200, 550, 750, 950]],
+    ['orange', 'テネシー通り', 180, [14, 70, 200, 550, 750, 950]],
+    ['orange', 'ニューヨーク通り', 200, [16, 80, 220, 600, 800, 1000]],
+    ['red', 'ケンタッキー通り', 220, [18, 90, 250, 700, 875, 1050]],
+    ['red', 'インディアナ通り', 220, [18, 90, 250, 700, 875, 1050]],
+    ['red', 'イリノイ通り', 240, [20, 100, 300, 750, 925, 1100]],
+    ['yellow', 'アトランティック通り', 260, [22, 110, 330, 800, 975, 1150]],
+    ['yellow', 'ベントナー通り', 260, [22, 110, 330, 800, 975, 1150]],
+    ['yellow', 'マービン・ガーデン', 280, [24, 120, 360, 850, 1025, 1200]],
+    ['green', 'パシフィック通り', 300, [26, 130, 390, 900, 1100, 1275]],
+    ['green', 'ノースカロライナ通り', 300, [26, 130, 390, 900, 1100, 1275]],
+    ['green', 'ペンシルベニア通り', 320, [28, 150, 450, 1000, 1200, 1400]],
+    ['dblue', 'パーク・プレース', 350, [35, 175, 500, 1100, 1300, 1500]],
+    ['dblue', 'ボードウォーク', 400, [50, 200, 600, 1400, 1700, 2000]],
+    ['rr', 'リーディング鉄道', 200], ['rr', 'ペンシルベニア鉄道', 200], ['rr', 'B&O鉄道', 200], ['rr', 'ショートライン', 200],
+    ['ut', '電力会社', 150], ['ut', '水道会社', 150],
+  ];
+  // [sign, amount, label]
+  const CARDS = [
+    [1, 200, '銀行の誤り'], [1, 150, '建築ローン満期'], [1, 100, '保険満期・遺産・休暇基金'], [1, 50, '銀行の配当・株の売却'],
+    [1, 25, 'コンサルタント料'], [1, 20, '所得税の還付'], [1, 10, '美人コンテスト2位'],
+    [-1, 100, '入院費'], [-1, 50, '医者代・学費'], [-1, 15, 'スピード違反'],
+  ];
+
+  // ---------- state ----------
+  const KEY = 'monopoly-wallet.v1';
+  const fresh = () => ({ name: '', bal: 1500, cfg: { start: 1500, go: 200, n: 4, cur: 'M' }, log: [] });
+  let S = fresh();
+  try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); S = Object.assign(fresh(), o, { cfg: Object.assign(fresh().cfg, o.cfg) }); } } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+  let entry = { digits: '', label: '', suggest: null, helper: false, err: '' };
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = n => (n < 0 ? '−' : '') + S.cfg.cur + Math.abs(n).toLocaleString('ja-JP');
+  const signed = n => (n < 0 ? '−' : '+') + S.cfg.cur + Math.abs(n).toLocaleString('ja-JP');
+  const amount = () => entry.digits ? parseInt(entry.digits, 10) : 0;
+  const others = () => Math.max(1, S.cfg.n - 1);
+
+  // ---------- core ----------
+  function apply(delta, label) {
+    if (!delta) return;
+    if (delta < 0 && S.bal + delta < 0) {
+      entry.err = fmt(-(S.bal + delta)) + ' 足りません。抵当に入れるか建物を売って、お金を作ってから払ってください。';
+      render(); return;
+    }
+    S.bal += delta;
+    S.log.push({ t: Date.now(), label, delta, bal: S.bal });
+    if (S.log.length > 1000) S.log.shift();
+    save();
+    entry = { digits: '', label: '', suggest: null, helper: false, err: '' };
+    render(true);
+  }
+  function undo() {
+    const e = S.log.pop(); if (!e) return;
+    S.bal -= e.delta; save(); render(true);
+  }
+  function fill(amt, label, suggest) {
+    entry = { digits: amt > 0 ? String(amt) : '', label, suggest: suggest || null, helper: true, err: '' };
+    closeSheet(); render();
+  }
+
+  function render(bump) {
+    $('who').textContent = S.name || 'プレイヤー（名前を設定）';
+    const bal = $('bal');
+    bal.textContent = fmt(S.bal);
+    if (bump) { bal.classList.remove('bump'); void bal.offsetWidth; bal.classList.add('bump'); }
+    $('goAmt').textContent = '+' + S.cfg.go;
+
+    const en = $('entry');
+    en.classList.toggle('err', !!entry.err);
+    $('eLab').textContent = entry.err || entry.label || (entry.digits ? '払う か もらう を押す' : '金額を入力');
+    $('eAmt').textContent = entry.err ? '' : S.cfg.cur + amount().toLocaleString('ja-JP');
+    $('clr').hidden = !entry.digits && !entry.label && !entry.err;
+
+    $('pay').classList.toggle('dim', entry.suggest === 'get');
+    $('get').classList.toggle('dim', entry.suggest === 'pay');
+
+    const e = S.log[S.log.length - 1];
+    $('last').innerHTML = e
+      ? '<span class="t">直前: ' + esc(e.label) + '　<b>' + signed(e.delta) + '</b></span><button type="button" id="undo">取り消す</button>'
+      : '<span class="t">金額を打って「払う」か「もらう」。よくある場面は下のボタンから。</span>';
+  }
+
+  function key(k) {
+    entry.err = '';
+    if (entry.helper) { entry = { digits: k === 'bs' ? entry.digits.slice(0, -1) : '', label: '', suggest: null, helper: false, err: '' }; if (k === 'bs') { render(); return; } }
+    if (k === 'bs') entry.digits = entry.digits.slice(0, -1);
+    else if ((entry.digits + k).length <= 6) entry.digits = (entry.digits + k).replace(/^0+/, '');
+    render();
+  }
+
+  // ---------- sheet ----------
+  let sheet = null;
+  function openSheet(title, body, foot, ctx) {
+    sheet = ctx || {};
+    $('shTitle').textContent = title;
+    $('shBody').innerHTML = body;
+    $('shFoot').innerHTML = foot || '';
+    $('sheet').hidden = false;
+    $('shBody').scrollTop = 0;
+  }
+  function closeSheet() { sheet = null; $('sheet').hidden = true; }
+
+  const val = id => $(id) ? $(id).value : null;
+  function propSelect(filter) {
+    let h = '<label class="field"><span class="lbl">土地</span><select id="f-prop" data-calc>';
+    for (const g in GROUPS) {
+      const items = PROPS.map((pr, i) => [pr, i]).filter(([pr]) => pr[0] === g && (!filter || filter(pr)));
+      if (!items.length) continue;
+      h += '<optgroup label="' + GROUPS[g][0] + '">' + items.map(([pr, i]) => '<option value="' + i + '">' + GROUPS[g][0] + '　' + fmt(pr[2]) + '　' + pr[1] + '</option>').join('') + '</optgroup>';
+    }
+    return h + '</select></label>';
+  }
+  const groupSelect = () => '<label class="field"><span class="lbl">色グループ</span><select id="f-group" data-calc>' +
+    BUILD_GROUPS.map(g => '<option value="' + g + '">' + GROUPS[g][0] + '（1軒 ' + fmt(GROUPS[g][1]) + '）</option>').join('') + '</select></label>';
+  const seg = (key, opts, cur) => '<div class="seg" data-seg="' + key + '">' + opts.map(([v, l]) => '<button type="button" data-v="' + v + '" aria-pressed="' + (v === cur) + '">' + l + '</button>').join('') + '</div>';
+  const stepper = (key, label, v) => '<div class="field"><span class="lbl">' + label + '</span><div class="stepper" data-stepper="' + key + '"><button type="button" data-d="-1" aria-label="減らす">−</button><output>' + v + '</output><button type="button" data-d="1" aria-label="増やす">＋</button></div></div>';
+  const result = () => '<div class="result"><span id="rLab"></span><b id="rAmt"></b></div>';
+  const footFill = '<button class="primary" id="doFill" type="button">この金額を入力</button>';
+
+  function rentOptions() {
+    const pr = PROPS[+val('f-prop')];
+    if (pr[0] === 'rr') return '<label class="field"><span class="lbl">持ち主の鉄道の数</span><select id="f-rr" data-calc>' + [1, 2, 3, 4].map(n => '<option value="' + n + '">' + n + '社（' + fmt(25 * 2 ** (n - 1)) + '）</option>').join('') + '</select></label>' +
+      '<label class="check"><input type="checkbox" id="f-x2" data-calc>「最寄りの鉄道」カードで止まった（2倍）</label>';
+    if (pr[0] === 'ut') return '<label class="field"><span class="lbl">持ち主の公共会社の数</span><select id="f-ut" data-calc><option value="4">1社（サイコロの目×4）</option><option value="10">2社（サイコロの目×10）</option></select></label>' +
+      '<label class="field"><span class="lbl">サイコロの目の合計</span><input type="text" id="f-dice" inputmode="numeric" value="7" data-calc></label>' +
+      '<label class="check"><input type="checkbox" id="f-x10" data-calc>「最寄りの公共会社」カードで止まった（×10）</label>';
+    const r = pr[3];
+    const opts = [['0', '土地だけ', r[0]], ['m', '色を独占・家なし（2倍）', r[0] * 2], ['1', '家 1軒', r[1]], ['2', '家 2軒', r[2]], ['3', '家 3軒', r[3]], ['4', '家 4軒', r[4]], ['5', 'ホテル', r[5]]];
+    return '<label class="field"><span class="lbl">建物</span><select id="f-state" data-calc>' + opts.map(([v, l, n]) => '<option value="' + v + '">' + l + '　' + fmt(n) + '</option>').join('') + '</select></label>';
+  }
+
+  // helper calculators: calc(ctx) → [amount, label, suggest]
+  const HELP = {
+    rent: {
+      title: '家賃',
+      body: () => seg('dir', [['pay', '払う'], ['get', 'もらう']], 'pay') + propSelect() + '<div id="rentOpts" style="display:grid;gap:18px"></div>' + result(),
+      init: c => { c.dir = 'pay'; $('rentOpts').innerHTML = rentOptions(); },
+      onProp: () => { $('rentOpts').innerHTML = rentOptions(); },
+      calc: c => {
+        const pr = PROPS[+val('f-prop')]; let a, d;
+        if (pr[0] === 'rr') { const n = +val('f-rr') || 1, x2 = $('f-x2') && $('f-x2').checked; a = 25 * 2 ** (n - 1) * (x2 ? 2 : 1); d = '鉄道' + n + '社' + (x2 ? '・2倍' : ''); }
+        else if (pr[0] === 'ut') { const dice = parseInt(val('f-dice'), 10) || 0, m = $('f-x10') && $('f-x10').checked ? 10 : +val('f-ut'); a = dice * m; d = '目' + dice + '×' + m; }
+        else { const st = val('f-state'), r = pr[3]; const map = { '0': [r[0], '土地'], 'm': [r[0] * 2, '独占'], '1': [r[1], '家1'], '2': [r[2], '家2'], '3': [r[3], '家3'], '4': [r[4], '家4'], '5': [r[5], 'ホテル'] }; [a, d] = map[st]; }
+        return [a, (c.dir === 'pay' ? '家賃を払う' : '家賃をもらう') + '（' + pr[1] + '・' + d + '）', c.dir];
+      },
+    },
+    buy: {
+      title: '土地を買う',
+      body: () => propSelect() + result() + '<p class="note">競売で落札したときは、入力したあとテンキーで落札額に打ち直してください。</p>',
+      calc: () => { const pr = PROPS[+val('f-prop')]; return [pr[2], '土地を買う（' + pr[1] + '）', 'pay']; },
+    },
+    build: {
+      title: '家・ホテル',
+      body: c => seg('mode', [['build', '建てる'], ['sell', '銀行に売る']], 'build') + groupSelect() + stepper('n', '軒数（ホテルも1軒と数える）', 1) + result() +
+        '<p class="note">ホテルは家4軒を銀行に返して、家1軒分を払って建てます。売るときは建築費の半額です。</p>',
+      init: c => { c.mode = 'build'; c.steps = { n: 1 }; },
+      calc: c => {
+        const g = val('f-group'), cost = GROUPS[g][1], n = c.steps.n;
+        return c.mode === 'build' ? [cost * n, '建築（' + GROUPS[g][0] + '×' + n + '）', 'pay'] : [cost / 2 * n, '建物を売る（' + GROUPS[g][0] + '×' + n + '）', 'get'];
+      },
+    },
+    mortgage: {
+      title: '抵当',
+      body: () => seg('mode', [['in', '入れる'], ['out', '解除'], ['int', '利息10%']], 'in') + propSelect() + result() +
+        '<p class="note">入れる: 土地価格の半額をもらう。解除: 抵当額＋10%を払う。利息: 抵当つきの土地を取引や破産で受け取ったら、すぐ抵当額の10%を払う（端数は切り上げ）。</p>',
+      init: c => { c.mode = 'in'; },
+      calc: c => {
+        const pr = PROPS[+val('f-prop')], m = pr[2] / 2;
+        if (c.mode === 'in') return [m, '抵当に入れる（' + pr[1] + '）', 'get'];
+        if (c.mode === 'out') return [Math.ceil(m * 1.1), '抵当を解除（' + pr[1] + '）', 'pay'];
+        return [Math.ceil(m * 0.1), '抵当の利息（' + pr[1] + '）', 'pay'];
+      },
+    },
+    repair: {
+      title: '修繕費カード',
+      body: () => '<label class="field"><span class="lbl">カード</span><select id="f-rep" data-calc><option value="25,100">一般修繕（家 25・ホテル 100）</option><option value="40,115">道路修繕（家 40・ホテル 115）</option></select></label>' +
+        stepper('h', '持っている家の数', 0) + stepper('H', '持っているホテルの数', 0) + result(),
+      init: c => { c.steps = { h: 0, H: 0 }; },
+      calc: c => { const [a, b] = val('f-rep').split(',').map(Number); return [a * c.steps.h + b * c.steps.H, '修繕費（家' + c.steps.h + '・ホテル' + c.steps.H + '）', 'pay']; },
+    },
+  };
+
+  function openHelper(id) {
+    if (id === 'cards') return openCards();
+    if (id === 'all') return openAll();
+    if (id === 'bankrupt') return openBankrupt();
+    const H = HELP[id], c = { id, steps: {} };
+    openSheet(H.title, H.body(c), footFill, c);
+    if (H.init) H.init(c);
+    recalc();
+  }
+  function recalc() {
+    if (!sheet || !HELP[sheet.id]) return;
+    const [a, lab, sug] = HELP[sheet.id].calc(sheet);
+    sheet.result = [a, lab, sug];
+    $('rLab').textContent = sug === 'pay' ? '払う' : 'もらう';
+    $('rAmt').textContent = S.cfg.cur + a.toLocaleString('ja-JP');
+    $('doFill').disabled = !(a > 0);
+  }
+
+  function openCards() {
+    const row = ([s, a, l], i) => '<button type="button" data-card="' + i + '"><span>' + l + '</span><b>' + (s > 0 ? '+' : '−') + a + '</b></button>';
+    openSheet('カード',
+      '<div class="list"><div class="h">もらう</div>' + CARDS.map((c, i) => c[0] > 0 ? row(c, i) : '').join('') +
+      '<div class="h">払う</div>' + CARDS.map((c, i) => c[0] < 0 ? row(c, i) : '').join('') + '</div>' +
+      '<p class="note">修繕費は「修繕費」、全員とやり取りするカードは「全員と」から。版によって金額が違うときはテンキーで直してください。</p>');
+  }
+  function openAll() {
+    const n = others();
+    const items = [
+      ['bday', '自分の誕生日（全員から 10）', 10 * n, 'get'],
+      ['chair', '自分が議長に選ばれた（全員に 50）', 50 * n, 'pay'],
+      ['obday', '他の人の誕生日（その人に 10）', 10, 'pay'],
+      ['ochair', '他の人が議長（その人から 50）', 50, 'get'],
+    ];
+    openSheet('全員とやり取り',
+      '<div class="list">' + items.map(([k, l, a, s]) => '<button type="button" data-all="' + k + '" data-a="' + a + '" data-s="' + s + '" data-l="' + esc(l) + '"><span>' + l + '</span><b>' + (s === 'get' ? '+' : '−') + a + '</b></button>').join('') + '</div>' +
+      '<p class="note">自分以外のプレイヤーは ' + n + '人で計算しています（人数は設定で変更）。</p>');
+  }
+  function openBankrupt() {
+    openSheet('破産',
+      '<p style="margin:0">払えない相手に、残っているお金 <b class="num" style="font-size:20px">' + fmt(S.bal) + '</b> をすべて渡します。土地・建物・カードも相手へ（銀行が相手なら銀行が競売）。</p>' +
+      '<p class="note">相手側は、受け取った額をテンキーで「もらう」に入れてもらってください。</p>',
+      '<button class="primary" id="doBankrupt" type="button"' + (S.bal > 0 ? '' : ' disabled') + '>' + fmt(S.bal) + ' を払って破産する</button>');
+  }
+  function openHistory() {
+    const items = S.log.slice().reverse().map(e => {
+      const d = new Date(e.t), tm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      return '<li><time>' + tm + '</time><span>' + esc(e.label) + '</span><span class="d">' + signed(e.delta) + '<small>残 ' + fmt(e.bal) + '</small></span></li>';
+    }).join('');
+    openSheet('履歴',
+      '<ul class="log">' + (items || '<li><span></span><span class="note">まだ記録がありません</span><span></span></li>') + '</ul>',
+      S.log.length ? '<button class="secondary" id="undoLast" type="button">最後の記録を取り消す</button>' : '');
+  }
+  function openSettings() {
+    openSheet('設定',
+      '<label class="field"><span class="lbl">自分の名前</span><input type="text" id="s-name" value="' + esc(S.name) + '" placeholder="例: たろう" autocomplete="off"></label>' +
+      stepper('n', 'プレイヤーの人数（自分を含む）', S.cfg.n + '人') +
+      '<label class="field"><span class="lbl">GO の給料</span><input type="text" id="s-go" inputmode="numeric" value="' + S.cfg.go + '"></label>' +
+      '<label class="field"><span class="lbl">最初の所持金</span><input type="text" id="s-start" inputmode="numeric" value="' + S.cfg.start + '"></label>' +
+      '<div class="field"><span class="lbl">通貨記号</span>' + seg('cur', [['M', 'M'], ['$', '$']], S.cfg.cur) + '</div>' +
+      '<button class="secondary" id="reset" type="button">新しいゲーム（残高を ' + fmt(S.cfg.start) + ' に戻す）</button>' +
+      '<p class="note">所得税 200・物品税 100・保釈金 50 は現行の標準ルールの金額です。記録はこのスマホのブラウザにだけ保存されます。</p>',
+      '', { id: 'settings' });
+  }
+
+  // ---------- events ----------
+  document.addEventListener('click', e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.k) { key(t.dataset.k); return; }
+    if (t.id === 'clr') { entry = { digits: '', label: '', suggest: null, helper: false, err: '' }; render(); return; }
+    if (t.id === 'pay' || t.id === 'get') {
+      const a = amount();
+      if (!a) { entry.err = ''; render(); return; }
+      const dir = t.id === 'pay' ? -1 : 1;
+      const lab = entry.label && (!entry.suggest || entry.suggest === t.id) ? entry.label : (dir < 0 ? '支払い' : '受け取り');
+      apply(dir * a, lab); return;
+    }
+    if (t.id === 'undo' || t.id === 'undoLast') { undo(); if (t.id === 'undoLast') openHistory(); return; }
+    if (t.dataset.fixed) {
+      const f = t.dataset.fixed;
+      if (f === 'go') apply(S.cfg.go, 'GO 通過');
+      if (f === 'itax') apply(-200, '所得税');
+      if (f === 'ltax') apply(-100, '物品税');
+      if (f === 'jail') apply(-50, '保釈金');
+      return;
+    }
+    if (t.dataset.help) { openHelper(t.dataset.help); return; }
+    if (t.id === 'openHist') { openHistory(); return; }
+    if (t.id === 'openSet' || t.id === 'who') { openSettings(); return; }
+    if (t.id === 'shClose') { closeSheet(); render(); return; }
+    if (t.id === 'doFill' && sheet && sheet.result) { const [a, l, s] = sheet.result; fill(a, l, s); return; }
+    if (t.dataset.card) { const [s, a, l] = CARDS[+t.dataset.card]; fill(a, 'カード（' + l + '）', s > 0 ? 'get' : 'pay'); return; }
+    if (t.dataset.all) { fill(+t.dataset.a, t.dataset.l, t.dataset.s); return; }
+    if (t.id === 'doBankrupt') { closeSheet(); apply(-S.bal, '破産（残金をすべて渡す）'); return; }
+    if (t.id === 'reset') {
+      if (!t.dataset.armed) {
+        t.dataset.armed = '1'; t.textContent = 'もう一度押すと履歴を消してやり直す';
+        setTimeout(() => { if (t.isConnected) { delete t.dataset.armed; t.textContent = '新しいゲーム（残高を ' + fmt(S.cfg.start) + ' に戻す）'; } }, 3000);
+        return;
+      }
+      S.bal = S.cfg.start; S.log = []; save();
+      entry = { digits: '', label: '', suggest: null, helper: false, err: '' };
+      closeSheet(); render(true); return;
+    }
+    const sg = t.closest('[data-seg]');
+    if (sg) {
+      sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
+      const k = sg.dataset.seg, v = t.dataset.v;
+      if (k === 'cur') { S.cfg.cur = v; save(); render(); return; }
+      if (sheet) { sheet[k] = v; recalc(); }
+      return;
+    }
+    const st = t.closest('[data-stepper]');
+    if (st && sheet) {
+      const k = st.dataset.stepper, d = +t.dataset.d, out = st.querySelector('output');
+      if (sheet.id === 'settings') { S.cfg.n = Math.max(2, Math.min(8, S.cfg.n + d)); out.textContent = S.cfg.n + '人'; save(); return; }
+      const min = k === 'n' ? 1 : 0, max = k === 'H' ? 12 : 32;
+      sheet.steps[k] = Math.max(min, Math.min(max, sheet.steps[k] + d));
+      out.textContent = sheet.steps[k]; recalc();
+    }
+  });
+
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'f-dice') { t.value = t.value.replace(/[^0-9]/g, '').slice(0, 2); recalc(); return; }
+    if (t.id === 's-name') { S.name = t.value.trim().slice(0, 20); save(); render(); return; }
+    if (t.id === 's-go' || t.id === 's-start') {
+      t.value = t.value.replace(/[^0-9]/g, '').slice(0, 6);
+      const n = parseInt(t.value, 10);
+      if (n >= 0) { if (t.id === 's-go') S.cfg.go = n; else S.cfg.start = n; save(); render(); }
+    }
+  });
+
+  document.addEventListener('change', e => {
+    const t = e.target; if (!sheet || !t.hasAttribute('data-calc')) return;
+    if (t.id === 'f-prop' && HELP[sheet.id] && HELP[sheet.id].onProp) HELP[sheet.id].onProp();
+    recalc();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

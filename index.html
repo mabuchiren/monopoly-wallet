@@ -38,7 +38,7 @@ button { cursor: pointer; background: none; border: 0; padding: 0; touch-action:
 .tbtn:active { background: var(--ink); color: var(--bg); }
 
 /* display */
-.display { padding-inline: 16px; padding-block: 12px 10px; display: grid; gap: 6px; }
+.display { padding-inline: 16px; padding-block: 12px 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .display .k { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--mute); }
 .bal { font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 700; font-size: clamp(52px, 17vw, 76px); line-height: 1; text-align: right; overflow-wrap: anywhere; }
 .bal.bump { animation: bump .25s ease-out; }
